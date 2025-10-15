@@ -1,14 +1,8 @@
+// src/shared/Upload.jsx
 import React, { useState } from "react";
-import { db, storage, USE_CLOUDINARY } from "../firebase";
+import { db, CLOUDINARY, USE_CLOUDINARY } from "../firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useAuth } from "../utils/auth";
-
-/*
-  Upload component:
-  - If USE_CLOUDINARY === true, it will POST to Cloudinary unsigned endpoint.
-  - Otherwise it will use Firebase Storage.
-*/
 
 export default function Upload() {
   const { user } = useAuth();
@@ -31,32 +25,25 @@ export default function Upload() {
     if (!file) return alert("Choose an image");
     setLoading(true);
     try {
-      let imageUrl = null;
-      if (USE_CLOUDINARY) {
-        // configure CLOUDINARY_URL and PRESET in env or edit below
-        const cloudName = "YOUR_CLOUD_NAME";
-        const unsignedPreset = "YOUR_UNSIGNED_PRESET";
-        const form = new FormData();
-        form.append("file", file);
-        form.append("upload_preset", unsignedPreset);
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-          method: "POST",
-          body: form
-        });
-        const data = await res.json();
-        imageUrl = data.secure_url;
-      } else {
-        if (!storage) throw new Error("Firebase Storage not available. Set USE_CLOUDINARY = true to use Cloudinary.");
-        const storageRef = ref(storage, `posts/${user.uid}/${Date.now()}_${file.name}`);
-        const uploadTask = uploadBytesResumable(storageRef, file);
-        await new Promise((res, rej) => {
-          uploadTask.on("state_changed", null, rej, () => res());
-        });
-        imageUrl = await getDownloadURL(storageRef);
+      if (!CLOUDINARY.cloudName || !CLOUDINARY.unsignedPreset) {
+        throw new Error("Cloudinary not configured. Set cloudName and unsignedPreset in src/firebase.js");
       }
+
+      const form = new FormData();
+      form.append("file", file);
+      form.append("upload_preset", CLOUDINARY.unsignedPreset);
+
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/image/upload`, {
+        method: "POST",
+        body: form
+      });
+      if (!res.ok) throw new Error("Cloudinary upload failed: " + res.statusText);
+      const data = await res.json();
+      const imageUrl = data.secure_url;
+
       await uploadToFirestore(imageUrl);
-      setCaption("");
       setFile(null);
+      setCaption("");
       alert("Uploaded");
     } catch (err) {
       alert("Upload error: " + err.message);
