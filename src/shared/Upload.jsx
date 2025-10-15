@@ -1,4 +1,3 @@
-// src/shared/Upload.jsx
 import React, { useState } from "react";
 import { db, CLOUDINARY, USE_CLOUDINARY } from "../firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
